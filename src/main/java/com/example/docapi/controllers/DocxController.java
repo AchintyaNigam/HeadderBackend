@@ -13,15 +13,25 @@ public class DocxController {
 
     @PostMapping("/upload")
     public ResponseEntity<byte[]> handleFileUpload(@RequestParam("file") MultipartFile file,
-                                                   @RequestParam("header") String headerText) throws IOException
-    {
-        try (InputStream is = file.getInputStream())
-        {
+                                                   @RequestParam("header") String headerText) throws IOException {
+        try (InputStream is = file.getInputStream()) {
             XWPFDocument document = new XWPFDocument(is);
 
-            // Modify the document
-            XWPFHeaderFooterPolicy policy = new XWPFHeaderFooterPolicy(document);
-            XWPFHeader header = policy.createHeader(XWPFHeaderFooterPolicy.DEFAULT);
+            // Get or create the header
+            XWPFHeaderFooterPolicy policy = document.getHeaderFooterPolicy();
+            if (policy == null) {
+                policy = new XWPFHeaderFooterPolicy(document);
+            }
+            XWPFHeader header = policy.getHeader(XWPFHeaderFooterPolicy.DEFAULT);
+
+            if (header != null) {
+                // Modify existing header
+                header.clearHeaderFooter();
+            } else {
+                // Create a new header
+                header = policy.createHeader(XWPFHeaderFooterPolicy.DEFAULT);
+            }
+
             XWPFParagraph paragraph = header.createParagraph();
             XWPFRun run = paragraph.createRun();
             run.setText(headerText);
@@ -40,6 +50,7 @@ public class DocxController {
             // Return the byte array of the modified document
             return new ResponseEntity<>(baos.toByteArray(), headers, HttpStatus.OK);
         } catch (Exception e) {
+            // Handle exceptions
             e.printStackTrace();
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
