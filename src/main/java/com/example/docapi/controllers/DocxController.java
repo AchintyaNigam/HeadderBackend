@@ -1,56 +1,46 @@
 package com.example.docapi.controllers;
 
-import org.apache.poi.xwpf.usermodel.*;
-import org.apache.poi.xwpf.model.XWPFHeaderFooterPolicy;
+import com.example.docapi.service.DocxService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import java.io.*;
+
+import java.io.IOException;
 
 @RestController
 @RequestMapping("/api/docx")
 public class DocxController {
 
+    @Autowired
+    private DocxService docxService;
+
     @PostMapping("/upload")
     public ResponseEntity<byte[]> handleFileUpload(@RequestParam("file") MultipartFile file,
                                                    @RequestParam("header") String headerText) throws IOException {
-        try (InputStream is = file.getInputStream()) {
-            XWPFDocument document = new XWPFDocument(is);
+        try
+        {
+            byte[] modifiedDoc = docxService.updateHeader(file, headerText);
 
-            // Get or create the header
-            XWPFHeaderFooterPolicy policy = document.getHeaderFooterPolicy();
-            if (policy == null) {
-                policy = new XWPFHeaderFooterPolicy(document);
-            }
-            XWPFHeader header = policy.getHeader(XWPFHeaderFooterPolicy.DEFAULT);
+            // Extract the original filename and create the new filename
+            String originalFilename = file.getOriginalFilename();
+            System.out.println(originalFilename);
+            String modifiedFilename = "modified_" + (originalFilename != null ? originalFilename : "document.docx");
+            System.out.println(modifiedFilename);
 
-            if (header != null) {
-                // Modify existing header
-                header.clearHeaderFooter();
-            } else {
-                // Create a new header
-                header = policy.createHeader(XWPFHeaderFooterPolicy.DEFAULT);
-            }
 
-            XWPFParagraph paragraph = header.createParagraph();
-            XWPFRun run = paragraph.createRun();
-            run.setText(headerText);
-
-            // Write the modified document to ByteArrayOutputStream
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            document.write(baos);
-
-            // Set content type and headers for download
+            // Set content type and headers for download.
             HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
-            headers.setContentDisposition(ContentDisposition.builder("attachment")
-                    .filename("modified_document.docx")
+            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM); //Standard media type for binary files.
+            headers.setContentDisposition(ContentDisposition.builder("attachment") // No need to set this for inline doc.
+                    .filename(modifiedFilename)
                     .build());
 
             // Return the byte array of the modified document
-            return new ResponseEntity<>(baos.toByteArray(), headers, HttpStatus.OK);
-        } catch (Exception e) {
-            // Handle exceptions
+            return new ResponseEntity<>(modifiedDoc, headers, HttpStatus.OK);
+        }
+        catch (Exception e)
+        {
             e.printStackTrace();
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
